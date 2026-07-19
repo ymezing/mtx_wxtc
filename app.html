@@ -100,7 +100,8 @@
 <div id="main-content" style="display:none;">
 <header>
   <h1>₿ BTC ALERTS</h1>
-  <div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button onclick="resetCredentials()" style="background:none;border:1px solid #333;color:#555;font-family:'Courier New',monospace;font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;">⚙ Reset</button>
     <span class="status-dot" id="status-dot"></span>
     <span id="status-text" style="font-size:11px;color:#555;">connecting…</span>
   </div>
@@ -212,6 +213,21 @@
     fetchPrice();
     fetchInterval = setInterval(fetchPrice, 3000);
     renderInterval = setInterval(refreshCooldowns, 1000);
+  }
+
+  function resetCredentials() {
+    if (!confirm('Reset Telegram credentials? You will need to enter them again.')) return;
+    localStorage.removeItem('btc_creds');
+    clearInterval(fetchInterval);
+    clearInterval(renderInterval);
+    TG_TOKEN = '';
+    TG_CHAT  = '';
+    appUnlocked = false;
+    document.getElementById('main-content').style.display = 'none';
+    document.getElementById('unlock-screen').style.display = 'flex';
+    document.getElementById('setup-fields').style.display = 'block';
+    document.getElementById('setup-token').value = '';
+    document.getElementById('setup-chatid').value = '';
   }
 
   function renderBkReminder() {
