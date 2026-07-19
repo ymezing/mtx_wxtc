@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC Alerts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #f0f0f0; min-height: 100vh; padding-bottom: 20px; }
+
+  header { background: #111; border-bottom: 1px solid #222; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 16px; font-weight: normal; color: #f7931a; letter-spacing: 0.1em; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #333; display: inline-block; margin-right: 6px; }
+  .status-dot.live { background: #00d4aa; box-shadow: 0 0 6px #00d4aa; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* PRICE DISPLAY */
+  .price-section { background: #111; border-bottom: 1px solid #222; padding: 20px; text-align: center; }
+  .price-label { font-size: 11px; color: #555; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .price-value { font-size: 42px; font-weight: bold; color: #f7931a; letter-spacing: 0.02em; }
+  .price-value.up { color: #00d4aa; }
+  .price-value.down { color: #ff4757; }
+  .price-change { font-size: 13px; margin-top: 6px; color: #555; }
+  .price-time { font-size: 10px; color: #333; margin-top: 4px; }
+
+  /* ADD ALERT */
+  .add-section { padding: 16px 20px; border-bottom: 1px solid #1a1a1a; background: #0d0d0d; }
+  .add-title { font-size: 12px; color: #f7931a; letter-spacing: 0.1em; margin-bottom: 10px; font-weight: bold; }
+  .add-row { display: flex; gap: 8px; align-items: center; }
+  .add-row select, .add-row input { background: #1a1a1a; border: 1px solid #2a2a2a; color: #f0f0f0; font-family: 'Courier New', monospace; font-size: 14px; padding: 8px 10px; border-radius: 4px; outline: none; }
+  .add-row select { flex-shrink: 0; }
+  .add-row input { flex: 1; }
+  .add-row input::placeholder { color: #444; }
+  .add-btn { background: #f7931a; color: #000; border: none; border-radius: 4px; padding: 8px 16px; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+  .add-btn:active { background: #e07d10; }
+
+  /* ALERTS LIST */
+  .alerts-section { padding: 16px 20px; }
+  .section-title { font-size: 12px; color: #f7931a; letter-spacing: 0.1em; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+  .alert-count { color: #fff; font-size: 12px; }
+
+  .alert-card { background: #111; border: 1px solid #1e1e1e; border-radius: 6px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; position: relative; }
+  .alert-card.triggered { border-color: #f7931a44; background: #1a1200; }
+  .alert-card.cooldown { border-color: #2a2a2a; opacity: 0.7; }
+
+  .alert-direction { font-size: 18px; flex-shrink: 0; }
+  .alert-body { flex: 1; min-width: 0; }
+  .alert-level { font-size: 18px; color: #f0f0f0; }
+  .alert-dir-label { font-size: 11px; margin-top: 2px; }
+  .alert-dir-label.above { color: #00d4aa; }
+  .alert-dir-label.below { color: #ff4757; }
+  .alert-status { font-size: 10px; color: #444; margin-top: 4px; }
+  .alert-fires { font-size: 10px; color: #555; }
+  .alert-del { background: none; border: none; color: #333; font-size: 18px; cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+  .alert-del:active { color: #ff4757; }
+
+  .cooldown-bar { height: 2px; background: #1a1a1a; border-radius: 1px; margin-top: 6px; overflow: hidden; }
+  .cooldown-fill { height: 100%; background: #f7931a; border-radius: 1px; transition: width 1s linear; }
+
+  /* LOG */
+  .log-section { padding: 0 20px 16px; }
+  .log-header { font-size: 12px; color: #f7931a; letter-spacing: 0.1em; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+  .log-clear { background: #1a1a1a; border: 1px solid #333; color: #888; font-size: 12px; cursor: pointer; font-family: 'Courier New', monospace; padding: 4px 12px; border-radius: 4px; }
+  .log-clear:active { color: #ff4757; border-color: #ff4757; }
+  .log-empty { font-size: 12px; color: #888; font-style: italic; padding: 10px 0; }
+
+  .log-entry { border-bottom: 1px solid #1a1a1a; padding: 10px 0; font-size: 12px; display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: #888; flex-shrink: 0; font-size: 11px; white-space: nowrap; }
+  .log-detail { color: #ccc; line-height: 1.5; }
+  .log-price { color: #f7931a; }
+  .log-dir.above { color: #00d4aa; }
+  .log-dir.below { color: #ff4757; }
+
+  /* NOTIFICATION PERMISSION */
+  .notif-bar { background: #1a1200; border: 1px solid #f7931a44; border-radius: 6px; padding: 10px 14px; margin: 16px 20px 0; font-size: 12px; color: #f7931a; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .notif-bar button { background: #f7931a; color: #000; border: none; border-radius: 4px; padding: 4px 12px; font-family: 'Courier New', monospace; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+
+  .empty-alerts { font-size: 12px; color: #888; font-style: italic; padding: 8px 0; }
+</style>
+</head>
+<body>
+
+<div id="unlock-screen" style="display:none;position:fixed;inset:0;background:#0a0a0a;z-index:999;flex-direction:column;align-items:center;justify-content:center;padding:30px;">
+  <div style="width:100%;max-width:400px;">
+    <div style="text-align:center;margin-bottom:30px;">
+      <div style="font-size:48px;">₿</div>
+      <div style="font-size:20px;color:#f7931a;font-family:'Courier New',monospace;letter-spacing:0.1em;margin-top:8px;">BTC ALERTS</div>
+      <div style="font-size:12px;color:#555;font-family:'Courier New',monospace;margin-top:8px;">ONE TIME SETUP</div>
+    </div>
+    <div id="setup-fields">
+      <input type="text" id="setup-token" placeholder="Telegram Bot Token" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;color:#f0f0f0;font-family:'Courier New',monospace;font-size:13px;padding:10px;border-radius:4px;outline:none;margin-bottom:10px;" />
+      <input type="text" id="setup-chatid" placeholder="Telegram Chat ID" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;color:#f0f0f0;font-family:'Courier New',monospace;font-size:13px;padding:10px;border-radius:4px;outline:none;margin-bottom:12px;" />
+    </div>
+    <button onclick="startApp()" style="width:100%;background:#f7931a;color:#000;border:none;border-radius:4px;padding:12px;font-family:'Courier New',monospace;font-size:15px;font-weight:bold;cursor:pointer;">Save & Start</button>
+    <div style="margin-top:16px;font-size:10px;color:#333;text-align:center;font-family:'Courier New',monospace;">Credentials stored locally on this device only</div>
+  </div>
+</div>
+
+<div id="main-content" style="display:none;">
+<header>
+  <h1>₿ BTC ALERTS</h1>
+  <div>
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text" style="font-size:11px;color:#555;">connecting…</span>
+  </div>
+</header>
+
+<div id="notif-bar-area"></div>
+
+<div class="price-section">
+  <div style="display:flex;gap:0;border-bottom:1px solid #1a1a1a;">
+    <div style="flex:1;padding:16px 20px;border-right:1px solid #1a1a1a;">
+      <div class="price-label">BTC / USD</div>
+      <div class="price-value" id="price-display">—</div>
+      <div class="price-change" id="price-change"></div>
+    </div>
+    <div style="flex:1;padding:16px 20px;">
+      <div class="price-label">HYPE / USD</div>
+      <div class="price-value" id="hype-display" style="font-size:28px;">—</div>
+      <div class="price-change" id="hype-change"></div>
+    </div>
+  </div>
+  <div class="price-time" id="price-time" style="padding:6px 20px;text-align:left;"></div>
+</div>
+
+<div class="add-section">
+  <div class="add-title">ADD PRICE ALERT</div>
+  <div class="add-row">
+    <select id="alert-asset">
+      <option value="BTC">BTC</option>
+      <option value="HYPE">HYPE</option>
+    </select>
+    <select id="alert-dir">
+      <option value="above">↑ Above</option>
+      <option value="below">↓ Below</option>
+    </select>
+    <input type="number" id="alert-price" placeholder="e.g. 95000" step="100" />
+    <button class="add-btn" onclick="addAlert()">+ Add</button>
+  </div>
+</div>
+
+<div class="alerts-section">
+  <div class="section-title">
+    <span>ACTIVE ALERTS</span>
+    <span class="alert-count" id="alert-count"></span>
+  </div>
+  <div id="alerts-list"></div>
+</div>
+
+<div class="log-section">
+  <div class="log-header">
+    <span>⚡ ALERT LOG</span>
+    <button class="log-clear" onclick="clearLog()">🗑 Clear log</button>
+  </div>
+  <div id="alert-log"></div>
+</div>
+
+<script>
+  // ── STATE ──────────────────────────────────────────────────────────────────
+  var alerts = [];
+  var log = [];
+  var currentPrice = null;
+  var prevPrice = null;
+  var hypePrice = null;
+  var prevHypePrice = null;
+  var fetchInterval = null;
+  var renderInterval = null;
+  var audioCtx = null;
+  var TG_TOKEN = '';
+  var TG_CHAT  = '';
+  var appUnlocked = false;
+
+  try { alerts = JSON.parse(localStorage.getItem('btc_alerts') || '[]'); } catch(e) { alerts = []; }
+  try { log = JSON.parse(localStorage.getItem('btc_alert_log') || '[]'); } catch(e) { log = []; }
+
+  // ── HELPERS ────────────────────────────────────────────────────────────────
+  function pad(n) { return String(n).padStart(2,'0'); }
+
+  function ukTime() {
+    var d = new Date();
+    return d.toLocaleString('en-GB', { timeZone: 'Europe/London', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }
+
+  function fmtPrice(p) {
+    return '$' + Number(p).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ── CREDENTIALS ───────────────────────────────────────────────────────────
+  function saveCredentials(token, chatId) {
+    localStorage.setItem('btc_creds', JSON.stringify({ token: token, chatId: chatId }));
+  }
+
+  function loadCredentials() {
+    try {
+      var data = localStorage.getItem('btc_creds');
+      return data ? JSON.parse(data) : null;
+    } catch(e) { return null; }
+  }
+
+  function startApp() {
+    var token  = document.getElementById('setup-token').value.trim();
+    var chatId = document.getElementById('setup-chatid').value.trim();
+    if (!token || !chatId) { alert('Please enter your Telegram token and chat ID.'); return; }
+    saveCredentials(token, chatId);
+    TG_TOKEN = token;
+    TG_CHAT  = chatId;
+    appUnlocked = true;
+    document.getElementById('unlock-screen').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    renderBkReminder(); renderBkBtn(); renderAlerts(); renderLog();
+    fetchPrice();
+    fetchInterval = setInterval(fetchPrice, 3000);
+    renderInterval = setInterval(refreshCooldowns, 1000);
+  }
+
+  function showUnlockScreen() {
+    var creds = loadCredentials();
+    if (creds) {
+      // Already set up — load and go straight to app
+      TG_TOKEN = creds.token;
+      TG_CHAT  = creds.chatId;
+      appUnlocked = true;
+      document.getElementById('unlock-screen').style.display = 'none';
+      document.getElementById('main-content').style.display = 'block';
+      renderBkReminder(); renderBkBtn(); renderAlerts(); renderLog();
+      fetchPrice();
+      fetchInterval = setInterval(fetchPrice, 3000);
+      renderInterval = setInterval(refreshCooldowns, 1000);
+    } else {
+      // First time — show setup screen
+      document.getElementById('main-content').style.display = 'none';
+      document.getElementById('unlock-screen').style.display = 'flex';
+    }
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem('btc_alerts', JSON.stringify(alerts));
+      localStorage.setItem('btc_alert_log', JSON.stringify(log));
+    } catch(e) {}
+  }
+
+  // ── SOUND ──────────────────────────────────────────────────────────────────
+  function playAlert(type) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var freqs = type === 'above' ? [523, 659, 784] : [784, 659, 523];
+      freqs.forEach(function(freq, i) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.15 + 0.3);
+        osc.start(audioCtx.currentTime + i * 0.15);
+        osc.stop(audioCtx.currentTime + i * 0.15 + 0.3);
+      });
+    } catch(e) {}
+  }
+
+  // ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+  function requestNotifPermission() {
+    if ('Notification' in window) {
+      Notification.requestPermission().then(function(p) {
+        renderNotifBar();
+      });
+    }
+  }
+
+  function sendNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body: body, icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">₿</text></svg>' });
+    }
+    sendTelegram(title, body);
+  }
+
+  function sendTelegram(title, body) {
+    var text = encodeURIComponent('🔔 ' + title + '\n' + body);
+    var url = 'https://api.telegram.org/bot' + TG_TOKEN + '/sendMessage?chat_id=' + TG_CHAT + '&text=' + text;
+    var img = new Image();
+    img.src = url;
+  }
+
+  function renderNotifBar() { /* Chrome handles permission prompt automatically on load */ }
+
+  // ── FETCH PRICE ────────────────────────────────────────────────────────────
+  function fetchPrice() {
+    fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'allMids', dex: '' })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var price = parseFloat(data['BTC']);
+      if (!isNaN(price)) {
+        prevPrice = currentPrice;
+        currentPrice = price;
+        prevHypePrice = hypePrice;
+        hypePrice = parseFloat(data['HYPE']) || null;
+        updatePriceDisplay();
+        checkAlerts();
+        setStatus('live');
+      }
+    })
+    .catch(function(e) {
+      setStatus('error');
+      console.warn('Price fetch failed:', e.message);
+    });
+  }
+
+  function setStatus(state) {
+    var dot = document.getElementById('status-dot');
+    var txt = document.getElementById('status-text');
+    if (state === 'live') {
+      dot.className = 'status-dot live';
+      txt.textContent = 'live';
+      txt.style.color = '#00d4aa';
+    } else {
+      dot.className = 'status-dot';
+      txt.textContent = 'reconnecting…';
+      txt.style.color = '#555';
+    }
+  }
+
+  function updatePriceDisplay() {
+    if (!currentPrice) return;
+    var el = document.getElementById('price-display');
+    el.textContent = fmtPrice(currentPrice);
+    el.className = 'price-value';
+    if (prevPrice) {
+      if (currentPrice > prevPrice) el.className = 'price-value up';
+      else if (currentPrice < prevPrice) el.className = 'price-value down';
+      var chg = currentPrice - prevPrice;
+      var pct = (chg / prevPrice * 100).toFixed(3);
+      var sign = chg >= 0 ? '+' : '';
+      document.getElementById('price-change').textContent = sign + fmtPrice(chg) + ' (' + sign + pct + '%)';
+    }
+    if (hypePrice) {
+      var hEl = document.getElementById('hype-display');
+      hEl.textContent = '$' + hypePrice.toFixed(4);
+      hEl.className = 'price-value';
+      if (prevHypePrice && hypePrice !== prevHypePrice) {
+        if (hypePrice > prevHypePrice) hEl.className = 'price-value up';
+        else if (hypePrice < prevHypePrice) hEl.className = 'price-value down';
+        var hChg = hypePrice - prevHypePrice;
+        var hPct = (hChg / prevHypePrice * 100).toFixed(3);
+        var hSign = hChg >= 0 ? '+' : '';
+        document.getElementById('hype-change').textContent = hSign + '$' + Math.abs(hChg).toFixed(4) + ' (' + hSign + hPct + '%)';
+      } else if (prevHypePrice && hypePrice === prevHypePrice) {
+        document.getElementById('hype-change').textContent = '';
+      }
+    }
+    document.getElementById('price-time').textContent = 'Last update: ' + ukTime();
+  }
+
+  // ── CHECK ALERTS ───────────────────────────────────────────────────────────
+  function checkAlerts() {
+    if (!currentPrice) return;
+    var now = Date.now();
+    var toDelete = [];
+
+    alerts.forEach(function(a) {
+      var assetPrice = (a.asset === 'HYPE') ? hypePrice : currentPrice;
+      if (!assetPrice) return;
+      var triggered = false;
+      if (a.direction === 'above' && assetPrice >= a.level) triggered = true;
+      if (a.direction === 'below' && assetPrice <= a.level) triggered = true;
+
+      if (!triggered) return;
+
+      // Check cooldown
+      if (a.lastFired && (now - a.lastFired) < 5 * 60 * 1000) return;
+
+      // Fire alert
+      a.fireCount = (a.fireCount || 0) + 1;
+      a.lastFired = now;
+
+      playAlert(a.direction);
+      var title = 'BTC ' + (a.direction === 'above' ? '↑ Above' : '↓ Below') + ' ' + fmtPrice(a.level);
+      var body = 'Current price: ' + fmtPrice(currentPrice);
+      sendNotification(title, body);
+
+      // Log it
+      log.unshift({
+        time: ukTime(),
+        level: a.level,
+        direction: a.direction,
+        price: currentPrice,
+        fireCount: a.fireCount
+      });
+      if (log.length > 100) log = log.slice(0, 100);
+
+      // Auto-delete after 2 fires
+      if (a.fireCount >= 2) {
+        toDelete.push(a.id);
+      }
+
+      persist();
+      renderAlerts();
+      renderLog();
+    });
+
+    // Remove auto-deleted alerts
+    if (toDelete.length) {
+      alerts = alerts.filter(function(a){ return toDelete.indexOf(a.id) === -1; });
+      persist();
+      renderAlerts();
+    }
+  }
+
+  // ── ADD / DELETE ALERT ─────────────────────────────────────────────────────
+  function addAlert() {
+    var asset = document.getElementById('alert-asset').value;
+    var dir = document.getElementById('alert-dir').value;
+    var price = parseFloat(document.getElementById('alert-price').value);
+    if (!price || price <= 0) { alert('Please enter a valid price level.'); return; }
+
+    alerts.push({ id: Date.now(), asset: asset, direction: dir, level: price, fireCount: 0, lastFired: null });
+    document.getElementById('alert-price').value = '';
+    persist();
+    renderAlerts();
+
+    // Unlock audio on first interaction
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  function deleteAlert(id) {
+    alerts = alerts.filter(function(a){ return a.id !== id; });
+    persist();
+    renderAlerts();
+  }
+
+  function clearLog() {
+    if (!confirm('Clear alert log?')) return;
+    log = [];
+    persist();
+    renderLog();
+  }
+
+  // ── RENDER ALERTS ──────────────────────────────────────────────────────────
+  function renderAlerts() {
+    var list = document.getElementById('alerts-list');
+    var count = document.getElementById('alert-count');
+    count.textContent = alerts.length ? alerts.length + ' alert' + (alerts.length > 1 ? 's' : '') : '';
+
+    if (!alerts.length) {
+      list.innerHTML = '<div class="empty-alerts">No alerts set — add one above</div>';
+      return;
+    }
+
+    var now = Date.now();
+    list.innerHTML = alerts.map(function(a) {
+      var inCooldown = a.lastFired && (now - a.lastFired) < 5 * 60 * 1000;
+      var cooldownPct = 0;
+      var cooldownLeft = '';
+      if (inCooldown) {
+        var elapsed = now - a.lastFired;
+        cooldownPct = Math.min(100, (elapsed / (5 * 60 * 1000)) * 100);
+        var secsLeft = Math.ceil((5 * 60 * 1000 - elapsed) / 1000);
+        var minsLeft = Math.floor(secsLeft / 60);
+        var sLeft = secsLeft % 60;
+        cooldownLeft = 'cooldown: ' + minsLeft + ':' + pad(sLeft) + ' remaining';
+      }
+
+      var priceColor = a.direction === 'above' ? '#00d4aa' : '#ff4757';
+      var arrow = a.direction === 'above' ? '↑' : '↓';
+      var cardClass = 'alert-card' + (inCooldown ? ' cooldown' : '') + (a.fireCount > 0 ? ' triggered' : '');
+
+      return '<div class="' + cardClass + '">'
+        + '<div class="alert-direction" style="color:' + priceColor + ';font-size:22px;">' + arrow + '</div>'
+        + '<div class="alert-body">'
+          + '<div class="alert-level"><span style="color:#f7931a;font-size:13px;margin-right:6px;">' + (a.asset||'BTC') + '</span>' + fmtPrice(a.level) + '</div>'
+          + '<div class="alert-dir-label ' + a.direction + '">' + (a.direction === 'above' ? 'Alert when price goes above' : 'Alert when price goes below') + '</div>'
+          + '<div class="alert-fires">Fired ' + (a.fireCount || 0) + '/2 times</div>'
+          + (inCooldown ? '<div class="cooldown-bar"><div class="cooldown-fill" style="width:' + cooldownPct + '%"></div></div>' : '')
+          + (cooldownLeft ? '<div class="alert-status">' + cooldownLeft + '</div>' : '')
+        + '</div>'
+        + '<button class="alert-del" onclick="deleteAlert(' + a.id + ')">×</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  // ── RENDER LOG ─────────────────────────────────────────────────────────────
+  function renderLog() {
+    var el = document.getElementById('alert-log');
+    if (!log.length) { el.innerHTML = '<div class="log-empty">No alerts fired yet</div>'; return; }
+    el.innerHTML = log.map(function(e) {
+      return '<div class="log-entry">'
+        + '<div class="log-time">' + e.time + '</div>'
+        + '<div class="log-detail">'
+          + '<span class="log-dir ' + e.direction + '">' + (e.direction === 'above' ? '↑ Above' : '↓ Below') + '</span>'
+          + ' ' + fmtPrice(e.level)
+          + ' · Price: <span class="log-price">' + fmtPrice(e.price) + '</span>'
+          + ' · Fire #' + e.fireCount
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // ── COOLDOWN TIMER REFRESH ─────────────────────────────────────────────────
+  function refreshCooldowns() {
+    var hasActive = alerts.some(function(a){
+      return a.lastFired && (Date.now() - a.lastFired) < 5 * 60 * 1000;
+    });
+    if (hasActive) renderAlerts();
+  }
+
+  // ── BOOT ───────────────────────────────────────────────────────────────────
+  renderNotifBar();
+  renderAlerts();
+  renderLog();
+  fetchPrice();
+  fetchInterval = setInterval(fetchPrice, 3000);
+  renderInterval = setInterval(refreshCooldowns, 1000);
+</script>
+</div>
+</body>
+</html>
