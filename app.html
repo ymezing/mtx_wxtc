@@ -214,6 +214,27 @@
     renderInterval = setInterval(refreshCooldowns, 1000);
   }
 
+  function renderBkReminder() {
+    var area = document.getElementById('bk-reminder-area');
+    if (!area) return;
+    var last = localStorage.getItem('btc_last_backup');
+    if (!last) {
+      area.innerHTML = '<div class="bk-reminder">⚠️ No backup yet <button onclick="doBackup()">💾 Backup now</button></div>';
+      return;
+    }
+    var days = Math.floor((new Date() - new Date(last)) / 86400000);
+    area.innerHTML = days >= 7 ? '<div class="bk-reminder">⚠️ Last backup ' + days + ' days ago <button onclick="doBackup()">💾 Backup now</button></div>' : '';
+  }
+
+  function renderBkBtn() {
+    var btn = document.getElementById('backup-btn');
+    if (!btn) return;
+    var last = localStorage.getItem('btc_last_backup');
+    if (!last) { btn.textContent = '💾 Backup'; return; }
+    var d = new Date(last);
+    btn.textContent = '💾 ' + pad(d.getDate()) + '/' + pad(d.getMonth()+1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
   function showUnlockScreen() {
     var creds = loadCredentials();
     if (creds) {
